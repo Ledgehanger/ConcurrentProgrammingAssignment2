@@ -32,7 +32,9 @@
      //    in[]: previous PageRank values, read-only
      //    out[]: new PageRank values, initialised to zero
      //    outdeg[]: values pre-calculated by calculateOutDegree()
-     abstract void iterate(double a, double[] in, double[] out, int outdeg[]);
+     //    start: value for start of array
+     //    end: value for end of array
+     abstract void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end);
  }
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
@@ -103,7 +105,7 @@
          }
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg[]) {
+     void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end) {
          for (int i = 0; i < num_edges; i++) {
              if (outdeg[destination[i]] != 0) {
                  out[source[i]] += a * (in[destination[i]] / outdeg[destination[i]]);
@@ -186,7 +188,7 @@
      void calculateOutDegree(int outdeg[]) {
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg_unused[]) {
+     void iterate(double a, double[] in, double[] out, int outdeg_unused[], long start, long end) {
          int outdeg = 0;
          for (int i = 0; i < num_vertices; i++) {
              for (int j = source[i]; j < source[i + 1]; j++) {
@@ -279,12 +281,12 @@
 
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg[]) {
+     void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end) {
          // TODO:
          //    Iterate over all edges in the sparse matrix and calculate
          //    the contribution to the new PageRank value of a destination
          //    vertex made by the corresponding source vertex
-         for (int i = 0; i < num_vertices; i++) {
+         for (int i = (int)start; i < (int)end; i++) {
              for (int j = destination[i]; j < destination[i + 1]; j++) {
                  out[i] += a * (in[source[j]] / outdeg[source[j]]);
              }
@@ -316,64 +318,131 @@
      static SparseMatrix matrix;
 
      // Concurrent variables
-     boolean flag = false;
+     static boolean flag = false;
      static CyclicBarrier barrier;
+     static int num_threads;
 
      @Override
      public void run() {
          while (iter < max_iter && delta > tol) {
+             //System.out.println(Thread.currentThread().getName());
              try {
                  barrier.await();
-             } catch (InterruptedException ex){
+             } catch (InterruptedException ex) {
                  return;
-             } catch (BrokenBarrierException ex){
+             } catch (BrokenBarrierException ex) {
                  return;
              }
-             if(flag){
+             if (flag) {
                  break;
              }
              // Power iteration step.
              // 1. Transferring weight over out-going links (summation part)
-             matrix.iterate(d, x, y, outdeg);
+             long curThread = Long.parseLong(Thread.currentThread().getName());
+             matrix.iterate(d, x, y, outdeg, curThread * ((n-1) / num_threads), (curThread + 1) * ((n-1) / num_threads));
              // 2. Constants (1-d)v[i] added in separately.
              try {
                  barrier.await();
-             } catch (InterruptedException ex){
+             } catch (InterruptedException ex) {
                  return;
-             } catch (BrokenBarrierException ex){
+             } catch (BrokenBarrierException ex) {
                  return;
              }
-             double w = 1.0 - sum(y, n); // ensure y[] will sum to 1
-             for (int i = 0; i < n; ++i)
-                 y[i] += w * v[i];
 
-             // Calculate residual error
-             delta = normdiff(x, y, n);
-             iter++;
+             if (Thread.currentThread().getName().equals("0")) {
+                 double w = 1.0 - sum(y, n); // ensure y[] will sum to 1
+                 for (int i = 0; i < n; ++i)
+                     y[i] += w * v[i];
 
-             // Rescale to unit length and swap x[] and y[]
-             w = 1.0 / sum(y, n);
-             for (int i = 0; i < n; ++i) {
-                 x[i] = y[i] * w;
-                 y[i] = 0.;
+                 // Calculate residual error
+                 delta = normdiff(x, y, n);
+                 iter++;
+
+                 // Rescale to unit length and swap x[] and y[]
+                 w = 1.0 / sum(y, n);
+                 for (int i = 0; i < n; ++i) {
+                     x[i] = y[i] * w;
+                     y[i] = 0.;
+                 }
+
+                 if (delta < tol)
+                     flag = true;
+
+                 double tm_step = (double) (System.nanoTime() - tm_start) * 1e-9;
+                 if (verbose)
+                     System.err.println("iteration " + iter + ": delta=" + delta
+                             + " xnorm=" + sum(x, n)
+                             + " time=" + tm_step + " seconds");
+                 tm_start = System.nanoTime();
              }
-
-             if(delta < tol)
-                 flag = true;
-
-             double tm_step = (double) (System.nanoTime() - tm_start) * 1e-9;
-             if (verbose)
-                 System.err.println("iteration " + iter + ": delta=" + delta
-                         + " xnorm=" + sum(x, n)
-                         + " time=" + tm_step + " seconds");
-             tm_start = System.nanoTime();
          }
 
          if (delta > tol)
              System.err.println("Error: solution has not converged.");
 
+         if (Thread.currentThread().getName().equals("0")) {
+             try {
+                 barrier.await();
+             } catch (InterruptedException ex) {
+                 return;
+             } catch (BrokenBarrierException ex) {
+                 return;
+             }
+         }
          // Dump PageRank values to file
          writeToFile(outputFile, x, n);
+     }
+
+     public static void main(String args[]) {
+         if (args.length < 5) {
+             System.err.println("Usage: java pagerank graph.coo graph.csr graph.csc threads outputfile");
+             return;
+         }
+
+         tm_start = System.nanoTime();
+
+         System.out.println("COO: " + args[0]);
+         System.out.println("CSR: " + args[1]);
+         System.out.println("CSC: " + args[2]);
+
+         // SparseMatrix matrix = new SparseMatrixCOO( args[0] );
+         // SparseMatrix matrix = new SparseMatrixCSR( args[1] );
+         matrix = new SparseMatrixCSC(args[2]);
+
+         num_threads = Integer.parseInt(args[3]);
+         System.out.println("Number of threads: " + num_threads);
+         outputFile = args[4];
+
+         long tm_end = System.nanoTime();
+         double tm_input = (double) (tm_end - tm_start) * 1e-9;
+         tm_start = tm_end;
+         System.out.println("Reading input: " + args[0] + " seconds");
+
+         n = matrix.num_vertices;
+         x = new double[n];
+         v = new double[n];
+         y = new double[n];
+         barrier = new CyclicBarrier(num_threads);
+
+         for (int i = 0; i < n; ++i) {
+             x[i] = v[i] = ((double) 1) / (double) n;
+             y[i] = 0;
+         }
+
+         outdeg = new int[n];
+         matrix.calculateOutDegree(outdeg);
+
+         double tm_init = (double) (System.nanoTime() - tm_start) * 1e-9;
+         System.err.println("Initialisation: " + tm_init + " seconds");
+         tm_start = System.nanoTime();
+
+         // Start Threads
+         Thread threads[] = new Thread[num_threads];
+         for (int i = 0; i < num_threads; i++) {
+             threads[i] = new Thread(new PageRank());
+             threads[i].setName(Integer.toString(i));
+             threads[i].start();
+         }
      }
 
      static double sum(double[] a, int n) {
@@ -433,56 +502,5 @@
              out.println(i + " " + v[i]);
          out.close();
 
-     }
-
-     public static void main(String args[]) {
-         if (args.length < 5) {
-             System.err.println("Usage: java pagerank graph.coo graph.csr graph.csc threads outputfile");
-             return;
-         }
-
-         tm_start = System.nanoTime();
-
-         System.out.println("COO: " + args[0]);
-         System.out.println("CSR: " + args[1]);
-         System.out.println("CSC: " + args[2]);
-
-         // SparseMatrix matrix = new SparseMatrixCOO( args[0] );
-         // SparseMatrix matrix = new SparseMatrixCSR( args[1] );
-         matrix = new SparseMatrixCSC(args[2]);
-
-         int num_threads = Integer.parseInt(args[3]);
-         System.out.println("Number of threads: " + num_threads);
-         outputFile = args[4];
-
-         long tm_end = System.nanoTime();
-         double tm_input = (double) (tm_end - tm_start) * 1e-9;
-         tm_start = tm_end;
-         System.out.println("Reading input: " + args[0] + " seconds");
-
-         n = matrix.num_vertices;
-         x = new double[n];
-         v = new double[n];
-         y = new double[n];
-         barrier = new CyclicBarrier(num_threads);
-
-         for (int i = 0; i < n; ++i) {
-             x[i] = v[i] = ((double) 1) / (double) n;
-             y[i] = 0;
-         }
-
-         outdeg = new int[n];
-         matrix.calculateOutDegree(outdeg);
-
-         double tm_init = (double) (System.nanoTime() - tm_start) * 1e-9;
-         System.err.println("Initialisation: " + tm_init + " seconds");
-         tm_start = System.nanoTime();
-
-         // Start Threads
-         Thread threads[] = new Thread[num_threads];
-         for (Thread thread : threads) {
-             thread = new Thread(new PageRank());
-             thread.start();
-         }
      }
  }
