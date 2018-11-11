@@ -19,7 +19,7 @@
  import java.util.StringTokenizer;
  import java.util.concurrent.*;
 
- abstract class SparseMatrix {
+ abstract class SparseMatrixQ2 {
      int num_vertices; // Number of vertices in the graph
      int num_edges;    // Number of edges in the graph
 
@@ -39,11 +39,11 @@
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in coordinate format (COO)
- class SparseMatrixCOO extends SparseMatrix {
+ class SparseMatrixCOOQ2 extends SparseMatrixQ2 {
      int[] source;
      int[] destination;
 
-     SparseMatrixCOO(String file) {
+     SparseMatrixCOOQ2(String file) {
          try {
              InputStreamReader is
                      = new InputStreamReader(new FileInputStream(file), "UTF-8");
@@ -118,11 +118,11 @@
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse rows format (CSR), where a row index corresponds to
- class SparseMatrixCSR extends SparseMatrix {
+ class SparseMatrixCSRQ2 extends SparseMatrixQ2 {
      int[] source;
      int[] destination;
 
-     SparseMatrixCSR(String file) {
+     SparseMatrixCSRQ2(String file) {
          try {
              InputStreamReader is
                      = new InputStreamReader(new FileInputStream(file), "UTF-8");
@@ -203,11 +203,11 @@
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse columns format (CSC). The incoming edges for each
 // vertex are listed.
- class SparseMatrixCSC extends SparseMatrix {
+ class SparseMatrixCSCQ2 extends SparseMatrixQ2 {
      int[] source;
      int[] destination;
 
-     SparseMatrixCSC(String file) {
+     SparseMatrixCSCQ2(String file) {
          try {
              InputStreamReader is
                      = new InputStreamReader(new FileInputStream(file), "UTF-8");
@@ -294,7 +294,7 @@
      }
  }
 
- class PageRank implements Runnable {
+ class PageRankQ2 implements Runnable {
      // Final variables
      static final double d = 0.85;
      static final double tol = 1e-7;
@@ -315,7 +315,7 @@
 
      // Variables relating to matrix
      static String outputFile;
-     static SparseMatrix matrix;
+     static SparseMatrixQ2 matrix;
 
      // Concurrent variables
      static boolean flag = false;
@@ -405,9 +405,9 @@
          System.out.println("CSR: " + args[1]);
          System.out.println("CSC: " + args[2]);
 
-         // SparseMatrix matrix = new SparseMatrixCOO( args[0] );
-         // SparseMatrix matrix = new SparseMatrixCSR( args[1] );
-         matrix = new SparseMatrixCSC(args[2]);
+         // SparseMatrixQ3 matrix = new SparseMatrixCOOQ3( args[0] );
+         // SparseMatrixQ3 matrix = new SparseMatrixCSRQ3( args[1] );
+         matrix = new SparseMatrixCSCQ2(args[2]);
 
          num_threads = Integer.parseInt(args[3]);
          System.out.println("Number of threads: " + num_threads);
@@ -439,7 +439,7 @@
          // Start Threads
          Thread threads[] = new Thread[num_threads];
          for (int i = 0; i < num_threads; i++) {
-             threads[i] = new Thread(new PageRank());
+             threads[i] = new Thread(new PageRankQ2());
              threads[i].setName(Integer.toString(i));
              threads[i].start();
          }

@@ -283,6 +283,7 @@
          //    Iterate over all edges in the sparse matrix and calculate
          //    the contribution to the new PageRank value of a destination
          //    vertex made by the corresponding source vertex
+         // System.out.println("Thread: "+ Thread.currentThread().getName() + "\n Source "+  start + " to Source " + end  + "\nEdges to go through: " + (destination[(int)end] - destination[(int)start]));
          for (int i = (int)start; i < (int)end; i++) {
              for (int j = destination[i]; j < destination[i + 1]; j++) {
                  out[i] += a * (in[source[j]] / outdeg[source[j]]);
