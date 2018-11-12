@@ -201,7 +201,7 @@
 // in compressed sparse columns format (CSC). The incoming edges for each
 // vertex are listed.
  class SparseMatrixCSCQ3 extends SparseMatrixQ3 {
-     int[] source;
+     public  int[] source;
      int[] destination;
 
      SparseMatrixCSCQ3(String file) {
@@ -414,6 +414,7 @@
          // SparseMatrixQ3 matrix = new SparseMatrixCSRQ3( args[1] );
          matrix = new SparseMatrixCSCQ3(args[2]);
 
+
          num_threads = Integer.parseInt(args[3]);
          System.out.println("Number of threads: " + num_threads);
          outputFile = args[4];
@@ -440,6 +441,8 @@
          double tm_init = (double) (System.nanoTime() - tm_start) * 1e-9;
          System.err.println("Initialisation: " + tm_init + " seconds");
          tm_start = System.nanoTime();
+
+
 
          // Start Threads
          Thread threads[] = new Thread[num_threads];

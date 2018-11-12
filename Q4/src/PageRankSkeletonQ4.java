@@ -290,7 +290,6 @@
 
          for (int i = (int)start; i < (int)end; i++) {
              for (int j = destination[i]; j < destination[i + 1]; j++) {
-                 //out[i] += a * (in[source[j]] / outdeg[source[j]]);
                  out[i] += contribution[source[j]];
              }
          }
@@ -441,7 +440,7 @@
          numVerts = matrix.num_vertices;
          numEdges = matrix.num_edges;
 
-         int totEdgesToCalc = numEdges/num_threads;
+         int totEdgesToCalc = numVerts/num_threads;
          System.err.println(totEdgesToCalc);
 
          double tm_init = (double) (System.nanoTime() - tm_start) * 1e-9;
