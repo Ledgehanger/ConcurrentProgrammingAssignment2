@@ -2,10 +2,8 @@
   * Use command-line flag -ea for java VM to enable assertions.
   */
 
- import javax.swing.plaf.basic.BasicInternalFrameTitlePane;
  import java.lang.Long;
  import java.lang.Integer;
- import java.io.File;
  import java.io.BufferedReader;
  import java.io.InputStreamReader;
  import java.io.FileInputStream;
@@ -13,7 +11,6 @@
  import java.io.OutputStreamWriter;
  import java.io.FileOutputStream;
  import java.io.PrintWriter;
- import java.io.IOException;
  import java.io.FileNotFoundException;
  import java.io.UnsupportedEncodingException;
  import java.util.StringTokenizer;
@@ -39,7 +36,7 @@
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in coordinate format (COO)
- class SparseMatrixCOOQ2 extends SparseMatrixQ2 {
+ class SparseMatrixCOOQ2 extends SparseMatrixQ4 {
      int[] source;
      int[] destination;
 
@@ -118,7 +115,7 @@
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse rows format (CSR), where a row index corresponds to
- class SparseMatrixCSRQ2 extends SparseMatrixQ2 {
+ class SparseMatrixCSRQ2 extends SparseMatrixQ4 {
      int[] source;
      int[] destination;
 
@@ -203,7 +200,7 @@
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse columns format (CSC). The incoming edges for each
 // vertex are listed.
- class SparseMatrixCSCQ2 extends SparseMatrixQ2 {
+ class SparseMatrixCSCQ2 extends SparseMatrixQ4 {
      int[] source;
      int[] destination;
 
@@ -315,7 +312,7 @@
 
      // Variables relating to matrix
      static String outputFile;
-     static SparseMatrixQ2 matrix;
+     static SparseMatrixQ4 matrix;
 
      // Concurrent variables
      static boolean flag = false;
@@ -407,7 +404,7 @@
 
          // SparseMatrixQ3 matrix = new SparseMatrixCOOQ3( args[0] );
          // SparseMatrixQ3 matrix = new SparseMatrixCSRQ3( args[1] );
-         matrix = new SparseMatrixCSCQ2(args[2]);
+         matrix = new SparseMatrixCSCQ4(args[2]);
 
          num_threads = Integer.parseInt(args[3]);
          System.out.println("Number of threads: " + num_threads);
