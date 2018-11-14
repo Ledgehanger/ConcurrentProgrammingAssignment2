@@ -36,7 +36,7 @@
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in coordinate format (COO)
- class SparseMatrixCOOQ2 extends SparseMatrixQ4 {
+ class SparseMatrixCOOQ2 extends SparseMatrixQ2 {
      int[] source;
      int[] destination;
 
@@ -115,7 +115,7 @@
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse rows format (CSR), where a row index corresponds to
- class SparseMatrixCSRQ2 extends SparseMatrixQ4 {
+ class SparseMatrixCSRQ2 extends SparseMatrixQ2 {
      int[] source;
      int[] destination;
 
@@ -200,7 +200,7 @@
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse columns format (CSC). The incoming edges for each
 // vertex are listed.
- class SparseMatrixCSCQ2 extends SparseMatrixQ4 {
+ class SparseMatrixCSCQ2 extends SparseMatrixQ2 {
      int[] source;
      int[] destination;
 
@@ -312,7 +312,7 @@
 
      // Variables relating to matrix
      static String outputFile;
-     static SparseMatrixQ4 matrix;
+     static SparseMatrixQ2 matrix;
 
      // Concurrent variables
      static boolean flag = false;
@@ -402,9 +402,9 @@
          System.out.println("CSR: " + args[1]);
          System.out.println("CSC: " + args[2]);
 
-         // SparseMatrixQ3 matrix = new SparseMatrixCOOQ3( args[0] );
-         // SparseMatrixQ3 matrix = new SparseMatrixCSRQ3( args[1] );
-         matrix = new SparseMatrixCSCQ4(args[2]);
+         // SparseMatrixQ3 matrix = new SparseMatrixCOOQ2( args[0] );
+         // SparseMatrixQ3 matrix = new SparseMatrixCSRQ2( args[1] );
+         matrix = new SparseMatrixCSCQ2(args[2]);
 
          num_threads = Integer.parseInt(args[3]);
          System.out.println("Number of threads: " + num_threads);

@@ -19,6 +19,8 @@
  abstract class SparseMatrixQ4 {
      int num_vertices; // Number of vertices in the graph
      int num_edges;    // Number of edges in the graph
+     int [] source;    // sources from graphs
+     int [] destination; // destinations from graph
 
      // Auxiliary in preparation of PageRank iteration: pre-calculate the
      // out-degree (number of outgoing edges) for each vertex
@@ -31,15 +33,12 @@
      //    outdeg[]: values pre-calculated by calculateOutDegree()
      //    start: value for start of array
      //    end: value for end of array
-     abstract void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end);
+     abstract void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end);
  }
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in coordinate format (COO)
  class SparseMatrixCOOQ4 extends SparseMatrixQ4 {
-     int[] source;
-     int[] destination;
-
      SparseMatrixCOOQ4(String file) {
          try {
              InputStreamReader is
@@ -102,7 +101,7 @@
          }
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end) {
+     void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end) {
          for (int i = 0; i < num_edges; i++) {
              if (outdeg[destination[i]] != 0) {
                  out[source[i]] += a * (in[destination[i]] / outdeg[destination[i]]);
@@ -116,9 +115,6 @@
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse rows format (CSR), where a row index corresponds to
  class SparseMatrixCSRQ4 extends SparseMatrixQ4 {
-     int[] source;
-     int[] destination;
-
      SparseMatrixCSRQ4(String file) {
          try {
              InputStreamReader is
@@ -185,7 +181,7 @@
      void calculateOutDegree(int outdeg[]) {
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg_unused[], long start, long end) {
+     void iterate(double a, double[] in, double[] out, int outdeg_unused[], int start, int end) {
          int outdeg = 0;
          for (int i = 0; i < num_vertices; i++) {
              for (int j = source[i]; j < source[i + 1]; j++) {
@@ -201,9 +197,6 @@
 // in compressed sparse columns format (CSC). The incoming edges for each
 // vertex are listed.
  class SparseMatrixCSCQ4 extends SparseMatrixQ4 {
-     int[] source;
-     int[] destination;
-
      SparseMatrixCSCQ4(String file) {
          try {
              InputStreamReader is
@@ -220,6 +213,10 @@
              System.err.println("Exception: " + e);
              return;
          }
+     }
+
+     public int[] getSource() {
+         return source;
      }
 
      int getNext(BufferedReader rd) throws Exception {
@@ -278,17 +275,16 @@
 
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end) {
+     void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end) {
          // TODO:
          //    Iterate over all edges in the sparse matrix and calculate
          //    the contribution to the new PageRank value of a destination
          //    vertex made by the corresponding source vertex
          double [] contribution = new double[num_vertices];
-
          for(int i = 0; i < num_vertices; i++)
              contribution[i] = a * (in[i]/outdeg[i]);
 
-         for (int i = (int)start; i < (int)end; i++) {
+         for (int i = start; i < end; i++) {
              for (int j = destination[i]; j < destination[i + 1]; j++) {
                  out[i] += contribution[source[j]];
              }
@@ -325,11 +321,12 @@
      static boolean flag = false;
      static CyclicBarrier barrier;
      static int num_threads;
+     static int [] start;
+     static int [] end;
 
      @Override
      public void run() {
          while (iter < max_iter && delta > tol) {
-             //System.out.println(Thread.currentThread().getName());
              try {
                  barrier.await();
              } catch (InterruptedException ex) {
@@ -342,8 +339,10 @@
              }
              // Power iteration step.
              // 1. Transferring weight over out-going links (summation part)
-             long curThread = Long.parseLong(Thread.currentThread().getName());
-             matrix.iterate(d, x, y, outdeg, curThread * ((n-1) / num_threads), (curThread + 1) * ((n-1) / num_threads));
+             int curThread = Integer.parseInt(Thread.currentThread().getName());
+             //matrix.iterate(d, x, y, outdeg, curThread * ((n-1) / num_threads), (curThread + 1) * ((n-1) / num_threads));
+             matrix.iterate(d, x, y, outdeg, start[curThread], end[curThread]);
+
              // 2. Constants (1-d)v[i] added in separately.
              try {
                  barrier.await();
@@ -436,12 +435,38 @@
          outdeg = new int[n];
          matrix.calculateOutDegree(outdeg);
 
-         //Setting up values to precalc edges to evenly spread across threads
-         numVerts = matrix.num_vertices;
-         numEdges = matrix.num_edges;
+         //Pre calc number of edges to calc,
 
-         int totEdgesToCalc = numVerts/num_threads;
-         System.err.println(totEdgesToCalc);
+         start = new int [num_threads];
+         end = new int[num_threads];
+
+         int totEdgesToCalcPerThread = matrix.num_edges/num_threads;
+         int startCount = 0;
+         int endCount = 0;
+
+         for(int i=0; i<num_threads; i++){
+             if(i == num_threads-1){
+                 start[i] = startCount;
+                 end[i] = matrix.destination.length -1;
+                 break;
+             }
+             for(int j=startCount; j<matrix.destination.length; j++){
+                 if(matrix.destination[endCount] - matrix.destination[startCount] >= totEdgesToCalcPerThread)
+                 {
+                     start[i] = startCount;
+                     end[i] = endCount;
+                     startCount = endCount+1;
+                     break;
+                 }
+                 else{
+                     endCount++;
+                 }
+             }
+         }
+
+         for(int i=0; i<start.length; i++)
+             System.err.println("Start source:\t" + start[i] + "\nEnd source:\t" + end[i]);
+
 
          double tm_init = (double) (System.nanoTime() - tm_start) * 1e-9;
          System.err.println("Initialisation: " + tm_init + " seconds");
