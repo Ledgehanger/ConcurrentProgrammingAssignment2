@@ -34,6 +34,7 @@
      //    start: value for start of array
      //    end: value for end of array
      abstract void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end);
+     abstract void calcContrib(double a, double[] in, int outdeg[]);
  }
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
@@ -92,6 +93,10 @@
              source[i] = edge[0];
              destination[i] = edge[1];
          }
+     }
+
+     void calcContrib(double a, double[] in, int outdeg[]){
+
      }
 
      // Auxiliary function for PageRank calculation
@@ -179,6 +184,9 @@
 
      // Auxiliary function for PageRank calculation
      void calculateOutDegree(int outdeg[]) {
+     }
+
+     void calcContrib(double a, double[] in, int outdeg[]) {
      }
 
      void iterate(double a, double[] in, double[] out, int outdeg_unused[], int start, int end) {
@@ -274,12 +282,14 @@
 
      }
 
+     void calcContrib(double a, double[] in, int outdeg[]){
+         for(int i = 0; i < num_vertices; i++)
+             contribution[i] = (float)(a * (in[i]/outdeg[i]));
+     }
+
      void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end) {
          //System.out.println("Thread: "+ Thread.currentThread().getName() + "\tEdges to go through: " + (destination[end] - destination[start]));
          //double threadTimeStart = System.nanoTime();
-         for(int i = 0; i < num_vertices; i++)
-             contribution[i] = (float)(a * (in[i]/outdeg[i]));
-
          for (int i = start; i < end; i++) {
              for (int j = destination[i]; j < destination[i + 1]; j++) {
                  out[i] += contribution[source[j]];
@@ -324,6 +334,9 @@
      @Override
      public void run() {
          while (iter < max_iter && delta > tol){
+             if (Thread.currentThread().getName().equals("0")) {
+                 matrix.calcContrib(d,x,outdeg);
+             }
              try {
                  barrier.await();
              } catch (InterruptedException ex) {
