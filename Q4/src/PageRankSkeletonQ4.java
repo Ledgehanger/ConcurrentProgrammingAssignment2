@@ -2,7 +2,6 @@
   * Use command-line flag -ea for java VM to enable assertions.
   */
 
- import java.lang.Long;
  import java.lang.Integer;
  import java.io.BufferedReader;
  import java.io.InputStreamReader;
@@ -197,6 +196,7 @@
 // in compressed sparse columns format (CSC). The incoming edges for each
 // vertex are listed.
  class SparseMatrixCSCQ4 extends SparseMatrixQ4 {
+
      SparseMatrixCSCQ4(String file) {
          try {
              InputStreamReader is
@@ -213,10 +213,6 @@
              System.err.println("Exception: " + e);
              return;
          }
-     }
-
-     public int[] getSource() {
-         return source;
      }
 
      int getNext(BufferedReader rd) throws Exception {
@@ -276,19 +272,20 @@
      }
 
      void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end) {
-         // TODO:
-         //    Iterate over all edges in the sparse matrix and calculate
-         //    the contribution to the new PageRank value of a destination
-         //    vertex made by the corresponding source vertex
+         //System.out.println("Thread: "+ Thread.currentThread().getName() + "\tEdges to go through: " + (destination[end] - destination[start]));
+         //double threadTimeStart = System.nanoTime();
          double [] contribution = new double[num_vertices];
          for(int i = 0; i < num_vertices; i++)
-             contribution[i] = a * (in[i]/outdeg[i]);
+             contribution[i] = (a * (in[i]/outdeg[i]));
 
          for (int i = start; i < end; i++) {
              for (int j = destination[i]; j < destination[i + 1]; j++) {
                  out[i] += contribution[source[j]];
              }
          }
+         /*double threadTimeEnd = System.nanoTime();
+         double totalThreadTime = (threadTimeEnd - threadTimeStart) * 1e-9;
+         System.err.println("Thread:\t" + Thread.currentThread().getName() + "\t" + "Execution time of Thread:\t" + totalThreadTime + " seconds");*/
      }
  }
 
@@ -314,11 +311,9 @@
      // Variables relating to matrix
      static String outputFile;
      static SparseMatrixQ4 matrix;
-     static int numVerts;
-     static int numEdges;
 
      // Concurrent variables
-     static boolean flag = false;
+     static volatile boolean flag = false;
      static CyclicBarrier barrier;
      static int num_threads;
      static int [] start;
@@ -326,7 +321,7 @@
 
      @Override
      public void run() {
-         while (iter < max_iter && delta > tol) {
+         while (iter < max_iter && delta > tol){
              try {
                  barrier.await();
              } catch (InterruptedException ex) {
@@ -340,7 +335,6 @@
              // Power iteration step.
              // 1. Transferring weight over out-going links (summation part)
              int curThread = Integer.parseInt(Thread.currentThread().getName());
-             //matrix.iterate(d, x, y, outdeg, curThread * ((n-1) / num_threads), (curThread + 1) * ((n-1) / num_threads));
              matrix.iterate(d, x, y, outdeg, start[curThread], end[curThread]);
 
              // 2. Constants (1-d)v[i] added in separately.
@@ -391,9 +385,11 @@
              } catch (BrokenBarrierException ex) {
                  return;
              }
+             writeToFile(outputFile, x, n);
          }
+
          // Dump PageRank values to file
-         writeToFile(outputFile, x, n);
+
      }
 
      public static void main(String args[]) {
@@ -404,12 +400,12 @@
 
          tm_start = System.nanoTime();
 
-         System.out.println("COO: " + args[0]);
-         System.out.println("CSR: " + args[1]);
+         //System.out.println("COO: " + args[0]);
+         //System.out.println("CSR: " + args[1]);
          System.out.println("CSC: " + args[2]);
 
-         // SparseMatrixQ3 matrix = new SparseMatrixCOOQ3( args[0] );
-         // SparseMatrixQ3 matrix = new SparseMatrixCSRQ3( args[1] );
+         //matrix = new SparseMatrixCOOQ5( args[0] );
+         //matrix = new SparseMatrixCSRQ5( args[1] );
          matrix = new SparseMatrixCSCQ4(args[2]);
 
          num_threads = Integer.parseInt(args[3]);
@@ -419,7 +415,7 @@
          long tm_end = System.nanoTime();
          double tm_input = (double) (tm_end - tm_start) * 1e-9;
          tm_start = tm_end;
-         System.out.println("Reading input: " + args[0] + " seconds");
+         System.out.println("Reading input: " + args[2] + " seconds");
 
          n = matrix.num_vertices;
          x = new double[n];
@@ -440,34 +436,34 @@
          start = new int [num_threads];
          end = new int[num_threads];
 
-         int totEdgesToCalcPerThread = matrix.num_edges/num_threads;
+         int totEdgesToCalcPerThread = Math.round(matrix.num_edges/num_threads);
          int startCount = 0;
          int endCount = 0;
 
-         for(int i=0; i<num_threads; i++){
-             if(i == num_threads-1){
-                 start[i] = startCount;
-                 end[i] = matrix.destination.length -1;
-                 break;
-             }
-             for(int j=startCount; j<matrix.destination.length; j++){
-                 if(matrix.destination[endCount] - matrix.destination[startCount] >= totEdgesToCalcPerThread)
-                 {
+         if(num_threads==1) {
+             start[0]=0;
+             end[0]=matrix.destination.length;
+         }
+
+         else {
+             for (int i = 0; i < num_threads; i++) {
+                 if (i == num_threads - 1) {
                      start[i] = startCount;
-                     end[i] = endCount;
-                     startCount = endCount+1;
+                     end[i] = matrix.destination.length - 1;
                      break;
                  }
-                 else{
-                     endCount++;
+                 for (int j = startCount; j < matrix.destination.length; j++) {
+                     if (matrix.destination[endCount] - matrix.destination[startCount] >= totEdgesToCalcPerThread) {
+                         start[i] = startCount;
+                         end[i] = endCount;
+                         startCount = endCount;
+                         break;
+                     } else {
+                         endCount++;
+                     }
                  }
              }
          }
-
-         for(int i=0; i<start.length; i++)
-             System.err.println("Start source:\t" + start[i] + "\nEnd source:\t" + end[i]);
-
-
          double tm_init = (double) (System.nanoTime() - tm_start) * 1e-9;
          System.err.println("Initialisation: " + tm_init + " seconds");
          tm_start = System.nanoTime();

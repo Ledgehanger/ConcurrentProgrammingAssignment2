@@ -16,9 +16,11 @@
  import java.util.StringTokenizer;
  import java.util.concurrent.*;
 
- abstract class SparseMatrixQ2 {
+ abstract class SparseMatrixQ5 {
      int num_vertices; // Number of vertices in the graph
      int num_edges;    // Number of edges in the graph
+     int [] source;    // sources from graphs
+     int [] destination; // destinations from graph
 
      // Auxiliary in preparation of PageRank iteration: pre-calculate the
      // out-degree (number of outgoing edges) for each vertex
@@ -31,16 +33,13 @@
      //    outdeg[]: values pre-calculated by calculateOutDegree()
      //    start: value for start of array
      //    end: value for end of array
-     abstract void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end);
+     abstract void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end);
  }
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in coordinate format (COO)
- class SparseMatrixCOOQ2 extends SparseMatrixQ2 {
-     int[] source;
-     int[] destination;
-
-     SparseMatrixCOOQ2(String file) {
+ class SparseMatrixCOOQ5 extends SparseMatrixQ5 {
+     SparseMatrixCOOQ5(String file) {
          try {
              InputStreamReader is
                      = new InputStreamReader(new FileInputStream(file), "UTF-8");
@@ -102,7 +101,7 @@
          }
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end) {
+     void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end) {
          for (int i = 0; i < num_edges; i++) {
              if (outdeg[destination[i]] != 0) {
                  out[source[i]] += a * (in[destination[i]] / outdeg[destination[i]]);
@@ -115,11 +114,8 @@
 
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse rows format (CSR), where a row index corresponds to
- class SparseMatrixCSRQ2 extends SparseMatrixQ2 {
-     int[] source;
-     int[] destination;
-
-     SparseMatrixCSRQ2(String file) {
+ class SparseMatrixCSRQ5 extends SparseMatrixQ5 {
+     SparseMatrixCSRQ5(String file) {
          try {
              InputStreamReader is
                      = new InputStreamReader(new FileInputStream(file), "UTF-8");
@@ -185,7 +181,7 @@
      void calculateOutDegree(int outdeg[]) {
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg_unused[], long start, long end) {
+     void iterate(double a, double[] in, double[] out, int outdeg_unused[], int start, int end) {
          int outdeg = 0;
          for (int i = 0; i < num_vertices; i++) {
              for (int j = source[i]; j < source[i + 1]; j++) {
@@ -200,11 +196,9 @@
  // This class represents the adjacency matrix of a graph as a sparse matrix
 // in compressed sparse columns format (CSC). The incoming edges for each
 // vertex are listed.
- class SparseMatrixCSCQ2 extends SparseMatrixQ2 {
-     int[] source;
-     int[] destination;
-
-     SparseMatrixCSCQ2(String file) {
+ class SparseMatrixCSCQ5 extends SparseMatrixQ5 {
+     float [] contribution;
+     SparseMatrixCSCQ5(String file) {
          try {
              InputStreamReader is
                      = new InputStreamReader(new FileInputStream(file), "UTF-8");
@@ -238,6 +232,8 @@
 
          num_vertices = getNext(rd);
          num_edges = getNext(rd);
+
+         contribution = new float[num_vertices];
 
          // TODO: allocate data structures
          destination = new int[num_vertices + 1];
@@ -278,20 +274,24 @@
 
      }
 
-     void iterate(double a, double[] in, double[] out, int outdeg[], long start, long end) {
-         // TODO:
-         //    Iterate over all edges in the sparse matrix and calculate
-         //    the contribution to the new PageRank value of a destination
-         //    vertex made by the corresponding source vertex
-         for (int i = (int)start; i <= (int)end; i++) {
+     void iterate(double a, double[] in, double[] out, int outdeg[], int start, int end) {
+         //System.out.println("Thread: "+ Thread.currentThread().getName() + "\tEdges to go through: " + (destination[end] - destination[start]));
+         //double threadTimeStart = System.nanoTime();
+         for(int i = 0; i < num_vertices; i++)
+             contribution[i] = (float)(a * (in[i]/outdeg[i]));
+
+         for (int i = start; i < end; i++) {
              for (int j = destination[i]; j < destination[i + 1]; j++) {
-                 out[i] += a * (in[source[j]] / outdeg[source[j]]);
+                 out[i] += contribution[source[j]];
              }
          }
+         /*double threadTimeEnd = System.nanoTime();
+         double totalThreadTime = (threadTimeEnd - threadTimeStart) * 1e-9;
+         System.err.println("Thread:\t" + Thread.currentThread().getName() + "\t" + "Execution time of Thread:\t" + totalThreadTime + " seconds");*/
      }
  }
 
- class PageRankQ2 implements Runnable {
+ class PageRankQ5 implements Runnable {
      // Final variables
      static final double d = 0.85;
      static final double tol = 1e-7;
@@ -312,17 +312,18 @@
 
      // Variables relating to matrix
      static String outputFile;
-     static SparseMatrixQ2 matrix;
+     static SparseMatrixQ5 matrix;
 
      // Concurrent variables
-     static boolean flag = false;
+     static volatile boolean flag = false;
      static CyclicBarrier barrier;
      static int num_threads;
+     static int [] start;
+     static int [] end;
 
      @Override
      public void run() {
-         while (iter < max_iter && delta > tol) {
-             //System.out.println(Thread.currentThread().getName());
+         while (iter < max_iter && delta > tol){
              try {
                  barrier.await();
              } catch (InterruptedException ex) {
@@ -335,8 +336,9 @@
              }
              // Power iteration step.
              // 1. Transferring weight over out-going links (summation part)
-             long curThread = Long.parseLong(Thread.currentThread().getName());
-             matrix.iterate(d, x, y, outdeg, curThread * ((n) / num_threads), (curThread + 1) * ((n) / num_threads));
+             int curThread = Integer.parseInt(Thread.currentThread().getName());
+             matrix.iterate(d, x, y, outdeg, start[curThread], end[curThread]);
+
              // 2. Constants (1-d)v[i] added in separately.
              try {
                  barrier.await();
@@ -385,9 +387,11 @@
              } catch (BrokenBarrierException ex) {
                  return;
              }
+             writeToFile(outputFile, x, n);
          }
+
          // Dump PageRank values to file
-         writeToFile(outputFile, x, n);
+
      }
 
      public static void main(String args[]) {
@@ -398,13 +402,15 @@
 
          tm_start = System.nanoTime();
 
-         System.out.println("COO: " + args[0]);
-         System.out.println("CSR: " + args[1]);
+         //System.out.println("COO: " + args[0]);
+         //System.out.println("CSR: " + args[1]);
          System.out.println("CSC: " + args[2]);
 
-         // SparseMatrixQ3 matrix = new SparseMatrixCOOQ2( args[0] );
-         // SparseMatrixQ3 matrix = new SparseMatrixCSRQ2( args[1] );
-         matrix = new SparseMatrixCSCQ2(args[2]);
+         //matrix = new SparseMatrixCOOQ5( args[0] );
+         //matrix = new SparseMatrixCSRQ5( args[1] );
+         matrix = new SparseMatrixCSCQ5(args[2]);
+
+         String format = "CSC";
 
          num_threads = Integer.parseInt(args[3]);
          System.out.println("Number of threads: " + num_threads);
@@ -413,7 +419,7 @@
          long tm_end = System.nanoTime();
          double tm_input = (double) (tm_end - tm_start) * 1e-9;
          tm_start = tm_end;
-         System.out.println("Reading input: " + args[0] + " seconds");
+         System.out.println("Reading input: " + args[2] + " seconds");
 
          n = matrix.num_vertices;
          x = new double[n];
@@ -429,6 +435,39 @@
          outdeg = new int[n];
          matrix.calculateOutDegree(outdeg);
 
+         //Pre calc number of edges to calc,
+
+         start = new int [num_threads];
+         end = new int[num_threads];
+
+         int totEdgesToCalcPerThread = Math.round(matrix.num_edges/num_threads);
+         int startCount = 0;
+         int endCount = 0;
+
+         if(num_threads==1) {
+             start[0]=0;
+             end[0]=matrix.destination.length;
+         }
+
+         else {
+             for (int i = 0; i < num_threads; i++) {
+                 if (i == num_threads - 1) {
+                     start[i] = startCount;
+                     end[i] = matrix.destination.length - 1;
+                     break;
+                 }
+                 for (int j = startCount; j < matrix.destination.length; j++) {
+                     if (matrix.destination[endCount] - matrix.destination[startCount] >= totEdgesToCalcPerThread) {
+                         start[i] = startCount;
+                         end[i] = endCount;
+                         startCount = endCount;
+                         break;
+                     } else {
+                         endCount++;
+                     }
+                 }
+             }
+         }
          double tm_init = (double) (System.nanoTime() - tm_start) * 1e-9;
          System.err.println("Initialisation: " + tm_init + " seconds");
          tm_start = System.nanoTime();
@@ -436,7 +475,7 @@
          // Start Threads
          Thread threads[] = new Thread[num_threads];
          for (int i = 0; i < num_threads; i++) {
-             threads[i] = new Thread(new PageRankQ2());
+             threads[i] = new Thread(new PageRankQ5());
              threads[i].setName(Integer.toString(i));
              threads[i].start();
          }

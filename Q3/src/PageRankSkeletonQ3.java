@@ -283,16 +283,16 @@
          //    Iterate over all edges in the sparse matrix and calculate
          //    the contribution to the new PageRank value of a destination
          //    vertex made by the corresponding source vertex
-         // System.out.println("Thread: "+ Thread.currentThread().getName() + "\n Source "+  start + " to Source " + end  + "\nEdges to go through: " + (destination[(int)end] - destination[(int)start]));
+         System.out.println("Thread: "+ Thread.currentThread().getName() + "Edges to go through: " + (destination[(int)end] - destination[(int)start]));
          double threadTimeStart = System.nanoTime();
          for (int i = (int)start; i < (int)end; i++) {
              for (int j = destination[i]; j < destination[i + 1]; j++) {
                  out[i] += a * (in[source[j]] / outdeg[source[j]]);
              }
          }
-         double threadTimeEnd = System.nanoTime();
+         /*double threadTimeEnd = System.nanoTime();
          double totalThreadTime = (threadTimeEnd - threadTimeStart) * 1e-9;
-         System.err.println("Thread:\t" + Thread.currentThread().getName() + "\t" + "Execution time of Thread:\t" + totalThreadTime + " seconds");
+         System.err.println("Thread:\t" + Thread.currentThread().getName() + "\t" + "Execution time of Thread:\t" + totalThreadTime + " seconds");*/
      }
  }
 
