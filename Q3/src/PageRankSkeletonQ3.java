@@ -326,7 +326,7 @@
 
      @Override
      public void run() {
-         while (iter < max_iter && delta > tol) {
+         while (true) {
              try {
                  barrier.await();
              } catch (InterruptedException ex) {
@@ -334,7 +334,7 @@
              } catch (BrokenBarrierException ex) {
                  return;
              }
-             if (flag) {
+             if (iter >= max_iter || flag) {
                  break;
              }
              // Power iteration step.
@@ -386,16 +386,9 @@
              System.err.println("Error: solution has not converged.");
 
          if (Thread.currentThread().getName().equals("0")) {
-             try {
-                 barrier.await();
-             } catch (InterruptedException ex) {
-                 return;
-             } catch (BrokenBarrierException ex) {
-                 return;
-             }
+             writeToFile(outputFile, x, n);
          }
-         // Dump PageRank values to file
-         writeToFile(outputFile, x, n);
+
      }
 
      public static void main(String args[]) {
@@ -450,6 +443,15 @@
              threads[i] = new Thread(new PageRankQ3());
              threads[i].setName(Integer.toString(i));
              threads[i].start();
+         }
+
+         for (int i=0; i<num_threads; i++){
+             try {
+                 threads[i].join();
+             }
+             catch(InterruptedException ex){
+                 return;
+             }
          }
      }
 

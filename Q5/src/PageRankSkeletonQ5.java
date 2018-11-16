@@ -315,7 +315,7 @@
      static double y[];
      static int outdeg[];
      static double delta = 2;
-     static int iter = 0;
+     static volatile int iter = 0;
 
      // Variables for time
      static long tm_start;
@@ -325,15 +325,15 @@
      static SparseMatrixQ5 matrix;
 
      // Concurrent variables
-     static volatile boolean flag = false;
      static CyclicBarrier barrier;
+     static volatile boolean flag =false;
      static int num_threads;
      static int [] start;
      static int [] end;
 
      @Override
      public void run() {
-         while (iter < max_iter && delta > tol){
+         while (true){
              if (Thread.currentThread().getName().equals("0")) {
                  matrix.calcContrib(d,x,outdeg);
              }
@@ -344,13 +344,15 @@
              } catch (BrokenBarrierException ex) {
                  return;
              }
-             if (flag) {
+
+             if (iter >= max_iter || flag)
                  break;
-             }
+
              // Power iteration step.
              // 1. Transferring weight over out-going links (summation part)
              int curThread = Integer.parseInt(Thread.currentThread().getName());
              matrix.iterate(d, x, y, outdeg, start[curThread], end[curThread]);
+
 
              // 2. Constants (1-d)v[i] added in separately.
              try {
@@ -376,8 +378,7 @@
                      x[i] = y[i] * w;
                      y[i] = 0.;
                  }
-
-                 if (delta < tol)
+                 if(delta<tol)
                      flag = true;
 
                  double tm_step = (double) (System.nanoTime() - tm_start) * 1e-9;
@@ -393,16 +394,8 @@
              System.err.println("Error: solution has not converged.");
 
          if (Thread.currentThread().getName().equals("0")) {
-             try {
-                 barrier.await();
-             } catch (InterruptedException ex) {
-                 return;
-             } catch (BrokenBarrierException ex) {
-                 return;
-             }
              writeToFile(outputFile, x, n);
          }
-
          // Dump PageRank values to file
 
      }
@@ -459,7 +452,7 @@
 
          if(num_threads==1) {
              start[0]=0;
-             end[0]=matrix.destination.length;
+             end[0]=matrix.destination.length-1;
          }
 
          else {
@@ -491,6 +484,15 @@
              threads[i] = new Thread(new PageRankQ5());
              threads[i].setName(Integer.toString(i));
              threads[i].start();
+         }
+
+         for (int i=0; i<num_threads; i++){
+             try {
+                 threads[i].join();
+             }
+             catch(InterruptedException ex){
+                 return;
+             }
          }
      }
 
